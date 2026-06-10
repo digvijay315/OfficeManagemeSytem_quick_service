@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  // baseURL:'https://officemanagemesytem.onrender.com/api'
+  // baseURL: 'http://localhost:5000/api',
+  baseURL:'https://officemanagemesytem-quick-service.onrender.com/api'
 });
 
 // Add a request interceptor
