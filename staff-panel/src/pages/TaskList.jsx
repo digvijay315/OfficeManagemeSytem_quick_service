@@ -262,7 +262,7 @@ const TaskCard = ({ task, onComplete }) => {
               <button 
                 onClick={async () => {
                   setIsUploading(true);
-                  const signatureData = sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL('image/png') : null;
+                  const signatureData = sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getCanvas().toDataURL('image/png') : null;
                   await onComplete(task._id, { comment, files, paymentAmount, paymentMode, paymentSlips, completionLocation: locationStr, customer_signature: signatureData, customer_rating: rating });
                   setIsUploading(false);
                   setShowCompleteModal(false);

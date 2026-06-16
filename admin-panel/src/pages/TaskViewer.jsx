@@ -366,6 +366,29 @@ export default function TaskViewer() {
                                                         </div>
                                                       )}
 
+                                                      {task.customer_rating > 0 && (
+                                                        <div className="mt-3">
+                                                          <span className="text-xs text-gray-500 font-semibold block mb-1">Customer Rating:</span>
+                                                          <div className="flex items-center gap-1">
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                              <span key={star} className={`text-lg ${star <= task.customer_rating ? 'text-yellow-400' : 'text-gray-300'}`}>
+                                                                ★
+                                                              </span>
+                                                            ))}
+                                                            <span className="text-xs text-gray-600 ml-1 font-medium">({task.customer_rating}/5)</span>
+                                                          </div>
+                                                        </div>
+                                                      )}
+
+                                                      {task.customer_signature && (
+                                                        <div className="mt-3">
+                                                          <span className="text-xs text-gray-500 font-semibold block mb-1">Customer Signature:</span>
+                                                          <div className="bg-white border border-gray-200 rounded-md p-1 inline-block">
+                                                            <img src={task.customer_signature} alt="Customer Signature" className="max-h-20 object-contain bg-white" />
+                                                          </div>
+                                                        </div>
+                                                      )}
+
                                                       {task.images && task.images.length > 0 && (
                                                         <div className="mt-3">
                                                           <span className="text-xs text-gray-500 font-semibold block mb-1">Work Proof:</span>
