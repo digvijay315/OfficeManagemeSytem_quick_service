@@ -30,7 +30,7 @@ const getGroupedTasks = async (req, res) => {
 };
 
 const updateTask = async (req, res) => {
-    const { status, comment, images, paymentAmount, paymentMode, paymentSlipUrls, completionLocation } = req.body;
+    const { status, comment, images, paymentAmount, paymentMode, paymentSlipUrls, completionLocation, customer_signature, customer_rating } = req.body;
     await Task.findOneAndUpdate({ _id: req.params.id, staff_id: req.user._id }, { 
         status, 
         comment, 
@@ -38,7 +38,9 @@ const updateTask = async (req, res) => {
         paymentAmount: paymentAmount || 0,
         paymentMode: paymentMode || 'none',
         paymentSlipUrls,
-        completionLocation
+        completionLocation,
+        customer_signature,
+        customer_rating: customer_rating || 0
     });
     res.json({ success: true });
 };

@@ -10,6 +10,9 @@ export default function TaskAssignment() {
     staff_id: '',
     title: '',
     description: '',
+    customer_name: '',
+    customer_mobile: '',
+    customer_address: '',
     date: new Date().toISOString().split('T')[0],
     type: 'regular'
   });
@@ -88,7 +91,7 @@ export default function TaskAssignment() {
       await api.post('/admin/tasks', { ...formData, images: imageUrls });
       closeLoader();
       showAlert('Success', 'Task assigned successfully!', 'success');
-      setFormData({ ...formData, title: '', description: '' });
+      setFormData({ ...formData, title: '', description: '', customer_name: '', customer_mobile: '', customer_address: '' });
       setSelectedFiles([]);
       setPreviewUrls([]);
     } catch (err) {
@@ -164,6 +167,39 @@ export default function TaskAssignment() {
               value={formData.title}
               onChange={(e) => setFormData({...formData, title: e.target.value})}
               required 
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><User size={16}/> Customer Name</label>
+            <input 
+              type="text" 
+              placeholder="e.g. John Doe"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={formData.customer_name}
+              onChange={(e) => setFormData({...formData, customer_name: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><FileText size={16}/> Customer Mobile</label>
+            <input 
+              type="text" 
+              placeholder="e.g. +91 9876543210"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={formData.customer_mobile}
+              onChange={(e) => setFormData({...formData, customer_mobile: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><FileText size={16}/> Customer Address</label>
+            <input 
+              type="text" 
+              placeholder="e.g. 123 Main St"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={formData.customer_address}
+              onChange={(e) => setFormData({...formData, customer_address: e.target.value})}
             />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { AlertCircle, CheckCircle, Clock, ChevronDown, ChevronUp, AlertTriangle, User, Calendar, MapPin } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, ChevronDown, ChevronUp, AlertTriangle, User, Calendar, MapPin, Download, Edit2, Trash2, X } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const AddressDisplay = ({ coords }) => {
   const [address, setAddress] = useState('');
@@ -39,6 +40,7 @@ export default function TaskViewer() {
   const [groupedTasks, setGroupedTasks] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [expandedRows, setExpandedRows] = useState({});
+  const [editModalTask, setEditModalTask] = useState(null);
   
   // Filters & Pagination
   const [page, setPage] = useState(1);
@@ -84,6 +86,63 @@ export default function TaskViewer() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setLoading(true);
+      let query = `/admin/tasks/export?`;
+      if (selectedStaff) query += `staff_id=${selectedStaff}&`;
+      if (dateFilter) query += `dateFilter=${dateFilter}&`;
+      
+      const res = await api.get(query, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'tasks_export.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Error exporting tasks', err);
+      alert('Failed to export tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (taskId) => {
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await api.delete(`/admin/tasks/${taskId}`);
+        Swal.fire('Deleted!', 'Task has been deleted.', 'success');
+        fetchGroupedTasks(page);
+      } catch (err) {
+        Swal.fire('Error', 'Failed to delete task', 'error');
+      }
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/admin/tasks/${editModalTask._id}`, editModalTask);
+      Swal.fire('Updated!', 'Task has been updated.', 'success');
+      setEditModalTask(null);
+      fetchGroupedTasks(page);
+    } catch (err) {
+      Swal.fire('Error', 'Failed to update task', 'error');
+    }
+  };
+
   useEffect(() => {
     fetchGroupedTasks(page);
   }, [page, selectedStaff, dateFilter]);
@@ -104,11 +163,11 @@ export default function TaskViewer() {
             <p className="text-gray-500 text-sm mt-1">Monitor all staff tasks organized by date and person.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-            <User size={16} className="text-gray-500" />
+        <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 w-full md:w-auto">
+            <User size={16} className="text-gray-500 shrink-0" />
             <select 
-              className="text-sm bg-transparent outline-none text-gray-700 min-w-[150px]"
+              className="text-sm bg-transparent outline-none text-gray-700 w-full"
               value={selectedStaff}
               onChange={(e) => { setSelectedStaff(e.target.value); setPage(1); }}
             >
@@ -119,35 +178,42 @@ export default function TaskViewer() {
             </select>
           </div>
 
-          <div className="flex bg-gray-100 p-1 rounded-lg">
+          <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto hide-scrollbar">
             <button 
               onClick={() => { setDateFilter('all'); setPage(1); }}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${dateFilter === 'all' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${dateFilter === 'all' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             >
               All Dates
             </button>
             <button 
               onClick={() => { setDateFilter('today'); setPage(1); }}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${dateFilter === 'today' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${dateFilter === 'today' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Today
             </button>
             <button 
               onClick={() => { setDateFilter('tomorrow'); setPage(1); }}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${dateFilter === 'tomorrow' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${dateFilter === 'tomorrow' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Tomorrow
             </button>
           </div>
-          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-             <Calendar size={16} className="text-gray-500" />
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 w-full md:w-auto">
+             <Calendar size={16} className="text-gray-500 shrink-0" />
              <input 
                 type="date" 
                 value={!['all', 'today', 'tomorrow'].includes(dateFilter) ? dateFilter : ''}
                 onChange={(e) => { setDateFilter(e.target.value || 'all'); setPage(1); }}
-                className="text-sm bg-transparent outline-none text-gray-700"
+                className="text-sm bg-transparent outline-none text-gray-700 w-full"
              />
           </div>
+          <button 
+            onClick={handleExport}
+            disabled={loading}
+            className="flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 w-full md:w-auto shadow-sm"
+          >
+            <Download size={16} /> Export
+          </button>
         </div>
       </div>
 
@@ -251,12 +317,18 @@ export default function TaskViewer() {
                       {isExpanded && (
                         <tr>
                             <td colSpan="4" className="bg-gray-50/50 p-0 border-b-2 border-indigo-100">
-                                <div className="p-6 bg-indigo-50/30 border-l-4 border-indigo-400 m-4 rounded-r-xl shadow-inner">
+                                <div className="p-4 md:p-6 bg-indigo-50/30 border-l-4 border-indigo-400 m-2 md:m-4 rounded-r-xl shadow-inner w-full box-border">
                                     <h4 className="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Detailed Tasks for {group.staff?.name} on {group.date}</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {tasks.map(task => (
-                                            <div key={task._id} className={`p-4 rounded-xl border ${task.type === 'emergency' ? 'border-red-200 bg-red-50' : 'border-white bg-white'} shadow-sm`}>
-                                                <div className="flex justify-between items-start mb-2">
+                                            <div key={task._id} className={`p-4 rounded-xl border ${task.type === 'emergency' ? 'border-red-200 bg-red-50' : 'border-white bg-white'} shadow-sm relative group`}>
+                                                {task.status !== 'completed' && (
+                                                    <div className="absolute top-2 right-2 flex gap-2">
+                                                        <button onClick={() => setEditModalTask({...task, date: task.date || ''})} className="p-1.5 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                                                        <button onClick={() => handleDelete(task._id)} className="p-1.5 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-start mb-2 pr-14">
                                                     <h5 className={`font-bold ${task.type === 'emergency' ? 'text-red-700' : 'text-gray-800'}`}>
                                                     {task.title}
                                                     </h5>
@@ -374,6 +446,75 @@ export default function TaskViewer() {
             </div>
         )}
       </div>
+
+      {editModalTask && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-4 md:p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4 md:mb-6 border-b pb-4 shrink-0">
+              <h3 className="text-xl font-bold">Edit Task Details</h3>
+              <button onClick={() => setEditModalTask(null)} className="text-gray-500 hover:text-gray-800"><X size={20}/></button>
+            </div>
+            <div className="overflow-y-auto pr-1 md:pr-2">
+              <form onSubmit={handleEditSubmit} className="space-y-4 md:space-y-5 pb-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <input required type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" value={editModalTask.title || ''} onChange={e => setEditModalTask({...editModalTask, title: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Task Type</label>
+                  <select className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white" value={editModalTask.type || 'regular'} onChange={e => setEditModalTask({...editModalTask, type: e.target.value})}>
+                    <option value="regular">Regular Task</option>
+                    <option value="emergency">Emergency Task</option>
+                    <option value="additional">Self Assigned</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows="3" value={editModalTask.description || ''} onChange={e => setEditModalTask({...editModalTask, description: e.target.value})}></textarea>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input required type="date" className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" value={editModalTask.date || ''} onChange={e => setEditModalTask({...editModalTask, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Staff</label>
+                  <select className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white" value={editModalTask.staff_id ? (editModalTask.staff_id._id || editModalTask.staff_id) : ''} onChange={e => setEditModalTask({...editModalTask, staff_id: e.target.value})}>
+                    {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-5 border-t border-gray-100">
+                <h4 className="text-sm font-bold text-gray-800 mb-3">Customer Details (Optional)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                    <input type="text" placeholder="e.g. John Doe" className="w-full px-3 py-2 border border-gray-200 rounded-md outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={editModalTask.customer_name || ''} onChange={e => setEditModalTask({...editModalTask, customer_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Mobile</label>
+                    <input type="text" placeholder="e.g. +91 9876543210" className="w-full px-3 py-2 border border-gray-200 rounded-md outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={editModalTask.customer_mobile || ''} onChange={e => setEditModalTask({...editModalTask, customer_mobile: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                    <input type="text" placeholder="e.g. 123 Main St" className="w-full px-3 py-2 border border-gray-200 rounded-md outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={editModalTask.customer_address || ''} onChange={e => setEditModalTask({...editModalTask, customer_address: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 mt-2">
+                <button type="submit" className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200">Save All Changes</button>
+              </div>
+            </form>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

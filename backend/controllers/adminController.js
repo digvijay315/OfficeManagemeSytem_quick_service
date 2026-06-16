@@ -7,6 +7,7 @@ const PredefinedTask = require('../models/PredefinedTask');
 const { staffSchema, subadminSchema } = require('../validations/staffValidation');
 const mongoose = require('mongoose');
 const { getPagination } = require('../utils/pagination');
+const ExcelJS = require('exceljs');
 
 const getGroupedTasks = async (req, res) => {
     const { page, limit, skip } = getPagination(req);
@@ -154,9 +155,9 @@ const deleteSubadmin = async (req, res) => {
 const { sendToUser } = require('../utils/sse');
 
 const assignTask = async (req, res) => {
-    const { staff_id, title, description, date, type, images } = req.body;
+    const { staff_id, title, description, date, type, images, customer_name, customer_mobile, customer_address } = req.body;
     try {
-        const task = await Task.create({ staff_id, title, description, date, type: type || 'regular', images: images || [] });
+        const task = await Task.create({ staff_id, title, description, date, type: type || 'regular', images: images || [], customer_name, customer_mobile, customer_address });
         
         sendToUser(staff_id, 'new_task', {
             id: task._id,
@@ -505,6 +506,98 @@ const getRevenueReports = async (req, res) => {
         res.status(500).json({ error: 'Error fetching revenue reports' });
     }
 };
+const exportTasksToExcel = async (req, res) => {
+    const { staff_id, dateFilter } = req.query;
+
+    const matchStage = {};
+    if (staff_id) matchStage.staff_id = new mongoose.Types.ObjectId(staff_id);
+    
+    if (dateFilter) {
+        if (dateFilter === 'today') {
+            matchStage.date = new Date().toISOString().split('T')[0];
+        } else if (dateFilter === 'tomorrow') {
+            const d = new Date();
+            d.setDate(d.getDate() + 1);
+            matchStage.date = d.toISOString().split('T')[0];
+        } else if (dateFilter !== 'all') {
+            matchStage.date = dateFilter;
+        }
+    }
+
+    try {
+        const tasks = await Task.find(matchStage).populate('staff_id', 'name email').sort({ date: -1, _id: -1 });
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Tasks');
+
+        worksheet.columns = [
+            { header: 'Date', key: 'date', width: 15 },
+            { header: 'Staff Name', key: 'staffName', width: 20 },
+            { header: 'Task Title', key: 'title', width: 30 },
+            { header: 'Description', key: 'description', width: 40 },
+            { header: 'Status', key: 'status', width: 15 },
+            { header: 'Type', key: 'type', width: 15 },
+            { header: 'Customer Name', key: 'customerName', width: 20 },
+            { header: 'Customer Mobile', key: 'customerMobile', width: 15 },
+            { header: 'Customer Address', key: 'customerAddress', width: 30 },
+            { header: 'Rating', key: 'rating', width: 10 },
+            { header: 'Payment Amount', key: 'paymentAmount', width: 15 },
+            { header: 'Payment Mode', key: 'paymentMode', width: 15 },
+            { header: 'Location', key: 'location', width: 20 },
+        ];
+
+        tasks.forEach(task => {
+            worksheet.addRow({
+                date: task.date,
+                staffName: task.staff_id ? task.staff_id.name : 'Unknown',
+                title: task.title,
+                description: task.description,
+                status: task.status,
+                type: task.type,
+                customerName: task.customer_name || '',
+                customerMobile: task.customer_mobile || '',
+                customerAddress: task.customer_address || '',
+                rating: task.customer_rating || '',
+                paymentAmount: task.paymentAmount || 0,
+                paymentMode: task.paymentMode || '',
+                location: task.completionLocation || ''
+            });
+        });
+
+        worksheet.getRow(1).font = { bold: true };
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=tasks_export.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error generating Excel file' });
+    }
+};
+
+const updateTaskByAdmin = async (req, res) => {
+    try {
+        const { title, description, date, type, staff_id, customer_name, customer_mobile, customer_address } = req.body;
+        const updateData = { title, description, date, type, customer_name, customer_mobile, customer_address };
+        if (staff_id) updateData.staff_id = staff_id;
+        
+        const task = await Task.findByIdAndUpdate(req.params.id, updateData, { new: true });
+        res.json(task);
+    } catch (err) {
+        res.status(400).json({ error: 'Error updating task' });
+    }
+};
+
+const deleteTaskByAdmin = async (req, res) => {
+    try {
+        await Task.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(400).json({ error: 'Error deleting task' });
+    }
+};
 
 module.exports = {
     getStaff, createStaff, updateStaff, deleteStaff,
@@ -512,5 +605,6 @@ module.exports = {
     assignTask, getGroupedTasks, recordFund, getFundsSummary, paySalary,
     getAttendance, getPredefinedTasks, createPredefinedTask, deletePredefinedTask,
     getDashboardStats, getAdvanceRequests, getAdvanceHistory, updateAdvanceRequest,
-    verifyTask, getRevenueReports, getPendingVerificationTasks
+    verifyTask, getRevenueReports, getPendingVerificationTasks, exportTasksToExcel,
+    updateTaskByAdmin, deleteTaskByAdmin
 };

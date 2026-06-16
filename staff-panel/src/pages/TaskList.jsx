@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
-import { AlertCircle, CheckCircle, Clock, PlusCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, X, Camera, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, PlusCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, X, Camera, Upload, Star } from 'lucide-react';
 import Swal from 'sweetalert2';
+import SignatureCanvas from 'react-signature-canvas';
 
 const TaskCard = ({ task, onComplete }) => {
   const [comment, setComment] = useState('');
@@ -12,6 +13,8 @@ const TaskCard = ({ task, onComplete }) => {
   const [paymentMode, setPaymentMode] = useState('none');
   const [paymentSlips, setPaymentSlips] = useState([]);
   const [locationStr, setLocationStr] = useState('');
+  const [rating, setRating] = useState(0);
+  const sigCanvas = React.useRef(null);
 
   useEffect(() => {
     if (task.status !== 'completed') {
@@ -216,6 +219,37 @@ const TaskCard = ({ task, onComplete }) => {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 mt-4">Customer Signature</label>
+              <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-50 h-32">
+                <SignatureCanvas 
+                  ref={sigCanvas} 
+                  penColor='black'
+                  canvasProps={{className: 'w-full h-full'}} 
+                />
+              </div>
+              <button type="button" onClick={() => sigCanvas.current && sigCanvas.current.clear()} className="text-xs text-red-600 mt-1 font-medium hover:underline">Clear Signature</button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 mt-4">Service Rating</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button 
+                    key={star} 
+                    type="button" 
+                    onClick={() => setRating(star)}
+                    className="focus:outline-none"
+                  >
+                    <Star 
+                      size={32} 
+                      className={star <= rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} 
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-3 pt-6">
               <button 
                 type="button" 
@@ -228,7 +262,8 @@ const TaskCard = ({ task, onComplete }) => {
               <button 
                 onClick={async () => {
                   setIsUploading(true);
-                  await onComplete(task._id, { comment, files, paymentAmount, paymentMode, paymentSlips, completionLocation: locationStr });
+                  const signatureData = sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL('image/png') : null;
+                  await onComplete(task._id, { comment, files, paymentAmount, paymentMode, paymentSlips, completionLocation: locationStr, customer_signature: signatureData, customer_rating: rating });
                   setIsUploading(false);
                   setShowCompleteModal(false);
                 }}
@@ -302,7 +337,7 @@ export default function TaskList() {
 
   const handleComplete = async (taskId, data) => {
     try {
-      const { comment, files, paymentAmount, paymentMode, paymentSlips, completionLocation } = data;
+      const { comment, files, paymentAmount, paymentMode, paymentSlips, completionLocation, customer_signature, customer_rating } = data;
       let imageUrls = [];
       let paymentSlipUrls = [];
 
@@ -331,7 +366,9 @@ export default function TaskList() {
           paymentAmount: Number(paymentAmount) || 0,
           paymentMode: paymentMode || 'none',
           paymentSlipUrls,
-          completionLocation
+          completionLocation,
+          customer_signature,
+          customer_rating
       });
       
       Swal.fire({
