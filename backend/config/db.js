@@ -3,9 +3,9 @@ const User = require('../models/User');
 
 const connectDB = async () => {
     try {
-        await mongoose.connect('mongodb+srv://digvijay:digvijay@cluster0.yisihts.mongodb.net/officeStaffManagement_quick_service?retryWrites=true&w=majority');
+        // await mongoose.connect('mongodb+srv://digvijay:digvijay@cluster0.yisihts.mongodb.net/officeStaffManagement_quick_service?retryWrites=true&w=majority');
 
-        // await mongoose.connect('mongodb://localhost:27017/officeStaffManagement_quick_service');
+        await mongoose.connect('mongodb://127.0.0.1:27017/officeStaffManagement_quick_service');
         
         console.log('MongoDB connected successfully');
         

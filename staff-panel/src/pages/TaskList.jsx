@@ -53,6 +53,15 @@ const TaskCard = ({ task, onComplete }) => {
       </div>
       <p className="text-gray-600 text-sm mb-4">{task.description}</p>
       
+      {(task.customer_name || task.customer_mobile || task.customer_address) && (
+        <div className="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">
+          <p className="font-semibold text-gray-700 mb-1">Customer Details:</p>
+          {task.customer_name && <p className="text-gray-600"><span className="font-medium">Name:</span> {task.customer_name}</p>}
+          {task.customer_mobile && <p className="text-gray-600"><span className="font-medium">Mobile:</span> <a href={`tel:${task.customer_mobile}`} className="text-blue-600 hover:underline">{task.customer_mobile}</a></p>}
+          {task.customer_address && <p className="text-gray-600"><span className="font-medium">Address:</span> {task.customer_address}</p>}
+        </div>
+      )}
+      
       {task.images && task.images.length > 0 && task.status !== 'completed' && (
         <div className="mb-4">
           <span className="text-xs text-gray-500 font-semibold block mb-1">Attached Images:</span>
