@@ -10,9 +10,13 @@ export default function FundManagement() {
   // Salary Tab State
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [summaryData, setSummaryData] = useState([]);
+  const [salaryPage, setSalaryPage] = useState(1);
+  const [salaryTotalPages, setSalaryTotalPages] = useState(1);
 
   // Requests Tab State
   const [requests, setRequests] = useState([]);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [requestsTotalPages, setRequestsTotalPages] = useState(1);
 
   // History Tab State
   const [history, setHistory] = useState([]);
@@ -21,6 +25,12 @@ export default function FundManagement() {
   const [historyMonth, setHistoryMonth] = useState('');
   const [staffList, setStaffList] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState('');
+
+  // Revenue Tab State
+  const [revenueData, setRevenueData] = useState([]);
+  const [revenueMonth, setRevenueMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [revenuePage, setRevenuePage] = useState(1);
+  const [revenueTotalPages, setRevenueTotalPages] = useState(1);
 
   // Initial Fetch Staff List for filters
   useEffect(() => {
@@ -38,8 +48,9 @@ export default function FundManagement() {
   // Fetch functions
   const fetchSummary = async (month) => {
     try {
-      const res = await api.get(`/admin/funds/summary/${month}`);
-      setSummaryData(res.data);
+      const res = await api.get(`/admin/funds/summary/${month}?page=${salaryPage}&limit=10`);
+      setSummaryData(res.data.data);
+      setSalaryTotalPages(res.data.pages || 1);
     } catch (err) {
       console.error('Error fetching fund summary');
     }
@@ -47,8 +58,9 @@ export default function FundManagement() {
 
   const fetchRequests = async () => {
     try {
-      const res = await api.get('/admin/funds/requests');
-      setRequests(res.data);
+      const res = await api.get(`/admin/funds/requests?page=${requestsPage}&limit=10`);
+      setRequests(res.data.data);
+      setRequestsTotalPages(res.data.pages || 1);
     } catch (err) {
       console.error('Error fetching requests');
     }
@@ -67,11 +79,24 @@ export default function FundManagement() {
     }
   };
 
+  const fetchRevenueReport = async () => {
+    try {
+      let url = `/admin/funds/revenue-details?page=${revenuePage}&limit=10`;
+      if (revenueMonth) url += `&month=${revenueMonth}`;
+      const res = await api.get(url);
+      setRevenueData(res.data.data);
+      setRevenueTotalPages(res.data.pages || 1);
+    } catch (err) {
+      console.error('Error fetching revenue report');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'salary' && selectedMonth) fetchSummary(selectedMonth);
     if (activeTab === 'requests') fetchRequests();
     if (activeTab === 'history') fetchHistory();
-  }, [activeTab, selectedMonth, historyPage, historyMonth, selectedStaff]);
+    if (activeTab === 'revenue') fetchRevenueReport();
+  }, [activeTab, selectedMonth, historyPage, historyMonth, selectedStaff, revenueMonth, salaryPage, requestsPage, revenuePage]);
 
 
 
@@ -232,6 +257,12 @@ export default function FundManagement() {
           >
             Advance History
           </button>
+          <button 
+            onClick={() => setActiveTab('revenue')}
+            className={`px-6 py-3 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'revenue' ? 'bg-white text-emerald-800' : 'text-emerald-100 hover:bg-emerald-700 hover:text-white'}`}
+          >
+            Revenue Report
+          </button>
         </div>
       </div>
 
@@ -245,7 +276,7 @@ export default function FundManagement() {
               <input 
                 type="month" 
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
+                onChange={(e) => {setSelectedMonth(e.target.value); setSalaryPage(1);}}
                 className="bg-transparent text-gray-800 font-bold outline-none cursor-pointer"
               />
             </div>
@@ -263,7 +294,7 @@ export default function FundManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {summaryData.map((data) => (
+                {summaryData?.map((data) => (
                   <tr key={data.staff_id} className="hover:bg-emerald-50/30 transition-colors">
                     <td className="p-5">
                       <div className="flex items-center gap-3">
@@ -318,6 +349,29 @@ export default function FundManagement() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {salaryTotalPages > 1 && (
+            <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
+              <span className="text-sm text-gray-600">Page <b>{salaryPage}</b> of <b>{salaryTotalPages}</b></span>
+              <div className="flex gap-2">
+                <button 
+                  disabled={salaryPage === 1}
+                  onClick={() => setSalaryPage(p => p - 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Previous
+                </button>
+                <button 
+                  disabled={salaryPage === salaryTotalPages}
+                  onClick={() => setSalaryPage(p => p + 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -379,6 +433,29 @@ export default function FundManagement() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {requestsTotalPages > 1 && (
+            <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
+              <span className="text-sm text-gray-600">Page <b>{requestsPage}</b> of <b>{requestsTotalPages}</b></span>
+              <div className="flex gap-2">
+                <button 
+                  disabled={requestsPage === 1}
+                  onClick={() => setRequestsPage(p => p - 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Previous
+                </button>
+                <button 
+                  disabled={requestsPage === requestsTotalPages}
+                  onClick={() => setRequestsPage(p => p + 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -483,6 +560,76 @@ export default function FundManagement() {
                 <button 
                   disabled={historyPage === historyTotalPages}
                   onClick={() => setHistoryPage(p => p + 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* REVENUE REPORT TAB */}
+      {activeTab === 'revenue' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-300">
+          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <h3 className="text-xl font-bold text-gray-800">Detailed Revenue Report</h3>
+            <div className="bg-white px-4 py-2 border border-gray-200 rounded-xl shadow-sm flex items-center gap-3">
+              <Calendar size={20} className="text-emerald-600" />
+              <input 
+                type="month" 
+                value={revenueMonth}
+                onChange={(e) => {setRevenueMonth(e.target.value); setRevenuePage(1);}}
+                className="bg-transparent text-gray-800 font-bold outline-none cursor-pointer"
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-sm tracking-wider uppercase">
+                  <th className="p-5 font-semibold border-b border-gray-200">Staff Name</th>
+                  <th className="p-5 font-semibold border-b border-gray-200">Customer Name</th>
+                  <th className="p-5 font-semibold border-b border-gray-200">Mobile No.</th>
+                  <th className="p-5 font-semibold border-b border-gray-200">Payment Date</th>
+                  <th className="p-5 font-semibold border-b border-gray-200 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {revenueData.map((data) => (
+                  <tr key={data.id} className="hover:emerald-50/30 transition-colors">
+                    <td className="p-5 font-bold text-gray-800">{data.staffName}</td>
+                    <td className="p-5 font-medium text-gray-600">{data.customerName}</td>
+                    <td className="p-5 font-medium text-gray-600">{data.customerMobile}</td>
+                    <td className="p-5 text-gray-600">{data.date}</td>
+                    <td className="p-5 text-right font-bold text-emerald-600 text-lg">₹{data.amount}</td>
+                  </tr>
+                ))}
+                {revenueData.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-gray-500">No revenue data found for this month.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {revenueTotalPages > 1 && (
+            <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
+              <span className="text-sm text-gray-600">Page <b>{revenuePage}</b> of <b>{revenueTotalPages}</b></span>
+              <div className="flex gap-2">
+                <button 
+                  disabled={revenuePage === 1}
+                  onClick={() => setRevenuePage(p => p - 1)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  Previous
+                </button>
+                <button 
+                  disabled={revenuePage === revenueTotalPages}
+                  onClick={() => setRevenuePage(p => p + 1)}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50 transition-colors"
                 >
                   Next

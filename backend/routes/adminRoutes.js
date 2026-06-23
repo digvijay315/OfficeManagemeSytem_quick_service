@@ -7,7 +7,7 @@ const {
     assignTask, getGroupedTasks, recordFund, getFundsSummary, paySalary,
     getAttendance, getPredefinedTasks, createPredefinedTask, deletePredefinedTask,
     getDashboardStats, getAdvanceRequests, getAdvanceHistory, updateAdvanceRequest,
-    verifyTask, getRevenueReports, getPendingVerificationTasks, exportTasksToExcel,
+    verifyTask, getRevenueReports, getDetailedRevenueReport, getPendingVerificationTasks, exportTasksToExcel,
     updateTaskByAdmin, deleteTaskByAdmin
 } = require('../controllers/adminController');
 
@@ -46,6 +46,7 @@ router.get('/funds/history', getAdvanceHistory);
 router.put('/funds/request/:id', updateAdvanceRequest);
 
 router.get('/revenue-reports', getRevenueReports);
+router.get('/funds/revenue-details', getDetailedRevenueReport);
 
 router.post('/pay-salary', paySalary);
 

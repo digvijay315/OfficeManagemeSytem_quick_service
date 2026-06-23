@@ -183,6 +183,7 @@ const recordFund = async (req, res) => {
 
 const getFundsSummary = async (req, res) => {
     const { month } = req.params; // format: 'YYYY-MM'
+    const { page, limit, skip } = getPagination(req);
     try {
         let staffMembers = await User.find({ role: 'staff' });
         
@@ -225,7 +226,11 @@ const getFundsSummary = async (req, res) => {
                 paymentDetails: payment || null
             };
         });
-        res.json(summary);
+        
+        const total = summary.length;
+        const paginatedSummary = summary.slice(skip, skip + limit);
+        
+        res.json({ data: paginatedSummary, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
         res.status(500).json({ error: 'Error fetching summary' });
     }
@@ -348,8 +353,10 @@ const getDashboardStats = async (req, res) => {
 };
 
 const getAdvanceRequests = async (req, res) => {
+    const { page, limit, skip } = getPagination(req);
     try {
-        const requests = await Fund.find({ status: 'pending' }).populate('staff_id', 'name email Upload').sort({ _id: -1 });
+        const total = await Fund.countDocuments({ status: 'pending' });
+        const requests = await Fund.find({ status: 'pending' }).populate('staff_id', 'name email Upload').sort({ _id: -1 }).skip(skip).limit(limit);
         const transformed = requests.map(r => ({
             id: r._id,
             staff_id: r.staff_id._id,
@@ -360,7 +367,7 @@ const getAdvanceRequests = async (req, res) => {
             date: r.date,
             description: r.description
         }));
-        res.json(transformed);
+        res.json({ data: transformed, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
         res.status(500).json({ error: 'Error fetching advance requests' });
     }
@@ -599,12 +606,37 @@ const deleteTaskByAdmin = async (req, res) => {
     }
 };
 
+const getDetailedRevenueReport = async (req, res) => {
+    const { month } = req.query; // optional filter
+    const { page, limit, skip } = getPagination(req);
+    try {
+        let query = { paymentAmount: { $gt: 0 }, status: 'completed' };
+        if (month) {
+            query.date = { $regex: `^${month}` };
+        }
+        const total = await Task.countDocuments(query);
+        const tasks = await Task.find(query).populate('staff_id', 'name email Upload').sort({ date: -1, _id: -1 }).skip(skip).limit(limit);
+        
+        const report = tasks.map(t => ({
+            id: t._id,
+            staffName: t.staff_id?.name || 'Unknown',
+            customerName: t.customer_name || 'N/A',
+            customerMobile: t.customer_mobile || 'N/A',
+            date: t.date,
+            amount: t.paymentAmount
+        }));
+        res.json({ data: report, total, page, pages: Math.ceil(total / limit) });
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching detailed revenue report' });
+    }
+};
+
 module.exports = {
     getStaff, createStaff, updateStaff, deleteStaff,
     getSubadmins, createSubadmin, updateSubadmin, deleteSubadmin,
     assignTask, getGroupedTasks, recordFund, getFundsSummary, paySalary,
     getAttendance, getPredefinedTasks, createPredefinedTask, deletePredefinedTask,
     getDashboardStats, getAdvanceRequests, getAdvanceHistory, updateAdvanceRequest,
-    verifyTask, getRevenueReports, getPendingVerificationTasks, exportTasksToExcel,
+    verifyTask, getRevenueReports, getDetailedRevenueReport, getPendingVerificationTasks, exportTasksToExcel,
     updateTaskByAdmin, deleteTaskByAdmin
 };
