@@ -41,6 +41,7 @@ export default function AttendanceViewer() {
   const [filterDate, setFilterDate] = useState(''); // Empty means all dates
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const fetchAttendance = async () => {
     showLoader('Loading', 'Fetching attendance records...');
@@ -208,9 +209,9 @@ export default function AttendanceViewer() {
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-[10px] font-bold uppercase text-gray-500">In</span>
                         {log.start_image_url ? (
-                          <a href={log.start_image_url} target="_blank" rel="noreferrer">
-                            <img src={log.start_image_url} alt="In Proof" className="w-12 h-12 rounded-lg object-cover border-2 border-emerald-200 hover:border-emerald-400 transition-colors cursor-pointer shadow-sm" />
-                          </a>
+                          <div onClick={() => setSelectedImage(log.start_image_url)} className="cursor-pointer">
+                            <img src={log.start_image_url} alt="In Proof" className="w-12 h-12 rounded-lg object-cover border-2 border-emerald-200 hover:border-emerald-400 transition-colors shadow-sm" />
+                          </div>
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-200">
                             <span className="text-[10px] font-medium">No Pic</span>
@@ -220,9 +221,9 @@ export default function AttendanceViewer() {
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-[10px] font-bold uppercase text-gray-500">Out</span>
                         {log.image_url ? (
-                          <a href={log.image_url} target="_blank" rel="noreferrer">
-                            <img src={log.image_url} alt="Out Proof" className="w-12 h-12 rounded-lg object-cover border-2 border-rose-200 hover:border-rose-400 transition-colors cursor-pointer shadow-sm" />
-                          </a>
+                          <div onClick={() => setSelectedImage(log.image_url)} className="cursor-pointer">
+                            <img src={log.image_url} alt="Out Proof" className="w-12 h-12 rounded-lg object-cover border-2 border-rose-200 hover:border-rose-400 transition-colors shadow-sm" />
+                          </div>
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-200">
                             <span className="text-[10px] font-medium">No Pic</span>
@@ -284,6 +285,29 @@ export default function AttendanceViewer() {
           </div>
         )}
       </div>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex flex-col items-center justify-center">
+            <button 
+              className="absolute top-4 right-4 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 rounded-full p-2 transition-all"
+              onClick={() => setSelectedImage(null)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <img 
+              src={selectedImage} 
+              alt="Preview" 
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
