@@ -201,6 +201,28 @@ const getFundsSummary = async (req, res) => {
             verificationStatus: 'verified', 
             rewardAmount: { $gt: 0 } 
         });
+        const allAttendances = await Attendance.find({ date: { $regex: `^${month}` } });
+
+        // Calculate days logic
+        const year = parseInt(month.split('-')[0]);
+        const monthNum = parseInt(month.split('-')[1]);
+        const totalDaysInMonth = new Date(year, monthNum, 0).getDate();
+        
+        let elapsedDays = totalDaysInMonth;
+        const today = new Date();
+        
+        if (today.getFullYear() === year && (today.getMonth() + 1) === monthNum) {
+            elapsedDays = today.getDate() - 1; 
+            if (elapsedDays < 0) elapsedDays = 0;
+        } else if (new Date(year, monthNum - 1) > today) {
+            elapsedDays = 0;
+        }
+
+        const datesToCheck = [];
+        for (let i = 1; i <= elapsedDays; i++) {
+            const dayStr = String(i).padStart(2, '0');
+            datesToCheck.push(`${month}-${dayStr}`);
+        }
 
         const summary = staffMembers.map(staff => {
             const staffFunds = allFunds.filter(f => f.staff_id.toString() === staff.id);
@@ -211,7 +233,22 @@ const getFundsSummary = async (req, res) => {
 
             const payment = allPayments.find(p => p.staff_id.toString() === staff.id);
             const baseSalary = staff.salary || 0;
-            const effectiveSalary = baseSalary + totalReward;
+            
+            // Attendance deduction calculation
+            const staffAttendances = allAttendances.filter(a => a.staff_id.toString() === staff.id);
+            const presentDates = new Set(staffAttendances.map(a => a.date));
+            
+            let absentDays = 0;
+            datesToCheck.forEach(d => {
+                if (!presentDates.has(d)) {
+                    absentDays++;
+                }
+            });
+
+            const dailySalary = totalDaysInMonth > 0 ? (baseSalary / totalDaysInMonth) : 0;
+            const totalDeduction = Math.round(absentDays * dailySalary);
+            
+            const effectiveSalary = baseSalary + totalReward - totalAdvance - totalDeduction;
             
             return {
                 staff_id: staff.id,
@@ -221,7 +258,10 @@ const getFundsSummary = async (req, res) => {
                 baseSalary,
                 totalReward,
                 totalAdvance,
-                remainingSalary: effectiveSalary - totalAdvance,
+                totalDeduction,
+                absentDays,
+                dailySalary: Math.round(dailySalary),
+                remainingSalary: effectiveSalary,
                 isPaid: !!payment,
                 paymentDetails: payment || null
             };
@@ -233,6 +273,81 @@ const getFundsSummary = async (req, res) => {
         res.json({ data: paginatedSummary, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
         res.status(500).json({ error: 'Error fetching summary' });
+    }
+};
+
+const getStaffMonthlyReport = async (req, res) => {
+    const { month, staff_id } = req.params;
+    try {
+        const staff = await User.findById(staff_id);
+        if (!staff) return res.status(404).json({ error: 'Staff not found' });
+
+        const funds = await Fund.find({ staff_id, date: { $regex: `^${month}` }, status: 'approved' });
+        const rewardTasks = await Task.find({ 
+            staff_id,
+            date: { $regex: `^${month}` }, 
+            verificationStatus: 'verified', 
+            rewardAmount: { $gt: 0 } 
+        });
+        const attendances = await Attendance.find({ staff_id, date: { $regex: `^${month}` } }).sort({ date: 1 });
+        
+        const year = parseInt(month.split('-')[0]);
+        const monthNum = parseInt(month.split('-')[1]);
+        const totalDaysInMonth = new Date(year, monthNum, 0).getDate();
+        
+        let elapsedDays = totalDaysInMonth;
+        const today = new Date();
+        
+        if (today.getFullYear() === year && (today.getMonth() + 1) === monthNum) {
+            elapsedDays = today.getDate() - 1; 
+            if (elapsedDays < 0) elapsedDays = 0;
+        } else if (new Date(year, monthNum - 1) > today) {
+            elapsedDays = 0;
+        }
+
+        const datesToCheck = [];
+        for (let i = 1; i <= elapsedDays; i++) {
+            const dayStr = String(i).padStart(2, '0');
+            datesToCheck.push(`${month}-${dayStr}`);
+        }
+
+        const presentDates = new Set(attendances.map(a => a.date));
+        const absentDates = datesToCheck.filter(d => !presentDates.has(d));
+        
+        const baseSalary = staff.salary || 0;
+        const dailySalary = totalDaysInMonth > 0 ? (baseSalary / totalDaysInMonth) : 0;
+        const totalDeduction = Math.round(absentDates.length * dailySalary);
+        
+        const totalAdvance = funds.reduce((sum, f) => sum + f.amount, 0);
+        const totalReward = rewardTasks.reduce((sum, t) => sum + (t.rewardAmount || 0), 0);
+        const netSalary = baseSalary + totalReward - totalAdvance - totalDeduction;
+
+        res.json({
+            staff: {
+                name: staff.name,
+                email: staff.email,
+                mobile: staff.mobile,
+                baseSalary
+            },
+            summary: {
+                month,
+                totalDaysInMonth,
+                elapsedDays,
+                presentDays: presentDates.size,
+                absentDays: absentDates.length,
+                dailySalary: Math.round(dailySalary),
+                totalDeduction,
+                totalAdvance,
+                totalReward,
+                netSalary
+            },
+            attendances: attendances.map(a => ({ date: a.date, start_time: a.start_time, end_time: a.end_time })),
+            absentDates,
+            advances: funds.map(f => ({ date: f.date, amount: f.amount, description: f.description })),
+            rewards: rewardTasks.map(t => ({ date: t.date, amount: t.rewardAmount, title: t.title }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Error generating report data' });
     }
 };
 
@@ -607,13 +722,25 @@ const deleteTaskByAdmin = async (req, res) => {
 };
 
 const getDetailedRevenueReport = async (req, res) => {
-    const { month } = req.query; // optional filter
+    const { month, staff_id, startDate, endDate, date } = req.query; // added filters
     const { page, limit, skip } = getPagination(req);
+    console.log("getDetailedRevenueReport called with query:", req.query);
     try {
         let query = { paymentAmount: { $gt: 0 }, status: 'completed' };
-        if (month) {
+        
+        if (staff_id) {
+            query.staff_id = new mongoose.Types.ObjectId(staff_id);
+        }
+        
+        if (date) {
+            query.date = date; // specific date match, e.g. today
+        } else if (startDate && endDate) {
+            query.date = { $gte: startDate, $lte: endDate };
+        } else if (month) {
             query.date = { $regex: `^${month}` };
         }
+
+        console.log("MongoDB Query:", JSON.stringify(query));
         const total = await Task.countDocuments(query);
         const tasks = await Task.find(query).populate('staff_id', 'name email Upload').sort({ date: -1, _id: -1 }).skip(skip).limit(limit);
         
@@ -627,6 +754,7 @@ const getDetailedRevenueReport = async (req, res) => {
         }));
         res.json({ data: report, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
+        console.error("Error in getDetailedRevenueReport:", err);
         res.status(500).json({ error: 'Error fetching detailed revenue report' });
     }
 };
@@ -638,5 +766,5 @@ module.exports = {
     getAttendance, getPredefinedTasks, createPredefinedTask, deletePredefinedTask,
     getDashboardStats, getAdvanceRequests, getAdvanceHistory, updateAdvanceRequest,
     verifyTask, getRevenueReports, getDetailedRevenueReport, getPendingVerificationTasks, exportTasksToExcel,
-    updateTaskByAdmin, deleteTaskByAdmin
+    updateTaskByAdmin, deleteTaskByAdmin, getStaffMonthlyReport
 };

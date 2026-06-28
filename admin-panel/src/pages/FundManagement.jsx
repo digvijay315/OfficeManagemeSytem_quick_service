@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import { showAlert, showLoader, closeLoader, showConfirm } from '../utils/swalUtils';
-import { Wallet, IndianRupee, Calendar, CheckCircle, HandCoins, User, Clock, Check, X, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wallet, IndianRupee, Calendar, CheckCircle, HandCoins, User, Clock, Check, X, FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import Swal from 'sweetalert2';
 
 export default function FundManagement() {
@@ -28,7 +30,11 @@ export default function FundManagement() {
 
   // Revenue Tab State
   const [revenueData, setRevenueData] = useState([]);
+  const [revenueStaffId, setRevenueStaffId] = useState('');
+  const [revenueFilterType, setRevenueFilterType] = useState('month'); // 'month', 'today', 'custom'
   const [revenueMonth, setRevenueMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [revenueStartDate, setRevenueStartDate] = useState('');
+  const [revenueEndDate, setRevenueEndDate] = useState('');
   const [revenuePage, setRevenuePage] = useState(1);
   const [revenueTotalPages, setRevenueTotalPages] = useState(1);
 
@@ -49,8 +55,8 @@ export default function FundManagement() {
   const fetchSummary = async (month) => {
     try {
       const res = await api.get(`/admin/funds/summary/${month}?page=${salaryPage}&limit=10`);
-      setSummaryData(res.data.data);
-      setSalaryTotalPages(res.data.pages || 1);
+      setSummaryData(res.data?.data || []);
+      setSalaryTotalPages(res.data?.pages || 1);
     } catch (err) {
       console.error('Error fetching fund summary');
     }
@@ -59,8 +65,8 @@ export default function FundManagement() {
   const fetchRequests = async () => {
     try {
       const res = await api.get(`/admin/funds/requests?page=${requestsPage}&limit=10`);
-      setRequests(res.data.data);
-      setRequestsTotalPages(res.data.pages || 1);
+      setRequests(res.data?.data || []);
+      setRequestsTotalPages(res.data?.pages || 1);
     } catch (err) {
       console.error('Error fetching requests');
     }
@@ -72,8 +78,8 @@ export default function FundManagement() {
       if (historyMonth) url += `&month=${historyMonth}`;
       if (selectedStaff) url += `&staff_id=${selectedStaff}`;
       const res = await api.get(url);
-      setHistory(res.data.data);
-      setHistoryTotalPages(res.data.pages || 1);
+      setHistory(res.data?.data || []);
+      setHistoryTotalPages(res.data?.pages || 1);
     } catch (err) {
       console.error('Error fetching history');
     }
@@ -81,13 +87,26 @@ export default function FundManagement() {
 
   const fetchRevenueReport = async () => {
     try {
+      showLoader('Loading', 'Filtering revenue report...');
       let url = `/admin/funds/revenue-details?page=${revenuePage}&limit=10`;
-      if (revenueMonth) url += `&month=${revenueMonth}`;
+      if (revenueStaffId) url += `&staff_id=${revenueStaffId}`;
+      
+      if (revenueFilterType === 'today') {
+        const today = new Date().toISOString().split('T')[0];
+        url += `&date=${today}`;
+      } else if (revenueFilterType === 'custom' && revenueStartDate && revenueEndDate) {
+        url += `&startDate=${revenueStartDate}&endDate=${revenueEndDate}`;
+      } else if (revenueFilterType === 'month' && revenueMonth) {
+        url += `&month=${revenueMonth}`;
+      }
+
       const res = await api.get(url);
-      setRevenueData(res.data.data);
-      setRevenueTotalPages(res.data.pages || 1);
+      setRevenueData(res.data?.data || []);
+      setRevenueTotalPages(res.data?.pages || 1);
+      closeLoader();
     } catch (err) {
       console.error('Error fetching revenue report');
+      closeLoader();
     }
   };
 
@@ -96,7 +115,7 @@ export default function FundManagement() {
     if (activeTab === 'requests') fetchRequests();
     if (activeTab === 'history') fetchHistory();
     if (activeTab === 'revenue') fetchRevenueReport();
-  }, [activeTab, selectedMonth, historyPage, historyMonth, selectedStaff, revenueMonth, salaryPage, requestsPage, revenuePage]);
+  }, [activeTab, selectedMonth, historyPage, historyMonth, selectedStaff, revenueMonth, revenueStaffId, revenueFilterType, revenueStartDate, revenueEndDate, salaryPage, requestsPage, revenuePage]);
 
 
 
@@ -151,6 +170,171 @@ export default function FundManagement() {
         closeLoader();
         showAlert('Error', 'Failed to process payment', 'error');
       }
+    }
+  };
+
+  const handleGenerateReport = async (staff_id, month) => {
+    try {
+      showLoader('Generating Report', 'Fetching detailed data...');
+      const res = await api.get(`/admin/funds/report/${month}/${staff_id}`);
+      const data = res.data;
+      
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(16, 185, 129); // Emerald 500
+      doc.text("Quick Service", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text("Premium Salary & Attendance Report", 14, 30);
+      doc.text(`Month: ${data.summary.month}`, 14, 35);
+      
+      // Staff Details
+      doc.setFontSize(14);
+      doc.setTextColor(40);
+      doc.text("Staff Details", 14, 45);
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      doc.text(`Name: ${data.staff.name}`, 14, 52);
+      doc.text(`Email: ${data.staff.email}`, 14, 57);
+      doc.text(`Base Salary: Rs. ${data.staff.baseSalary}`, 14, 62);
+
+      // Summary Table
+      autoTable(doc, {
+        startY: 70,
+        head: [['Total Days', 'Elapsed', 'Present', 'Absent', 'Daily Rate', 'Absent Cut', 'Advances', 'Rewards', 'Net Salary']],
+        body: [[
+          data.summary.totalDaysInMonth,
+          data.summary.elapsedDays,
+          data.summary.presentDays,
+          data.summary.absentDays,
+          `Rs. ${data.summary.dailySalary}`,
+          `Rs. ${data.summary.totalDeduction}`,
+          `Rs. ${data.summary.totalAdvance}`,
+          `Rs. ${data.summary.totalReward}`,
+          `Rs. ${data.summary.netSalary}`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129] },
+        styles: { halign: 'center', fontSize: 8 }
+      });
+
+      let currentY = doc.lastAutoTable.finalY + 10;
+
+      // Combined Attendance Log
+      const combinedAttendance = [];
+      for (let i = 1; i <= data.summary.elapsedDays; i++) {
+         const dayStr = String(i).padStart(2, '0');
+         const dateStr = `${month}-${dayStr}`;
+         const record = data.attendances.find(a => a.date === dateStr);
+         if (record) {
+            combinedAttendance.push([dateStr, 'Present', record.start_time || 'N/A', record.end_time || 'N/A']);
+         } else {
+            combinedAttendance.push([dateStr, 'Absent', '-', '-']);
+         }
+      }
+
+      if (combinedAttendance.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Daily Attendance Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Status', 'Start Time', 'End Time']],
+          body: combinedAttendance,
+          theme: 'striped',
+          didParseCell: function(dataParse) {
+             if (dataParse.section === 'body' && dataParse.column.index === 1) {
+                if (dataParse.cell.raw === 'Absent') {
+                   dataParse.cell.styles.textColor = [239, 68, 68]; // red
+                   dataParse.cell.styles.fontStyle = 'bold';
+                } else {
+                   dataParse.cell.styles.textColor = [16, 185, 129]; // green
+                   dataParse.cell.styles.fontStyle = 'bold';
+                }
+             }
+          },
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Advances Log
+      if (data.advances && data.advances.length > 0) {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Advances Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Amount', 'Description']],
+          body: data.advances.map(a => [a.date, `Rs. ${a.amount}`, a.description || 'N/A']),
+          theme: 'striped',
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Rewards Log
+      if (data.rewards && data.rewards.length > 0) {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Rewards Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Amount', 'Task']],
+          body: data.rewards.map(r => [r.date, `Rs. ${r.amount}`, r.title || 'N/A']),
+          theme: 'striped',
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Final Settlement Details
+      if (currentY > 220) { doc.addPage(); currentY = 20; }
+      
+      doc.setFontSize(14);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Final Settlement Details", 14, currentY);
+      
+      currentY += 8;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Base Salary: Rs. ${data.staff.baseSalary}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Total Rewards: + Rs. ${data.summary.totalReward}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Total Advance Taken: - Rs. ${data.summary.totalAdvance}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Absent Deductions: - Rs. ${data.summary.totalDeduction}`, 14, currentY);
+      
+      currentY += 10;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(16, 185, 129); // emerald
+      doc.text(`Total Payable Amount: Rs. ${data.summary.netSalary}`, 14, currentY);
+      
+      currentY += 30;
+      if (currentY > 270) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "normal");
+      doc.text("_________________________", 14, currentY);
+      doc.text("Staff Signature", 14, currentY + 6);
+      
+      doc.text("_________________________", 130, currentY);
+      doc.text("Admin Signature", 130, currentY + 6);
+
+      doc.save(`${data.staff.name.replace(/ /g, '_')}_Salary_Report_${month}.pdf`);
+      closeLoader();
+    } catch (err) {
+      console.error(err);
+      closeLoader();
+      showAlert('Error', 'Failed to generate report', 'error');
     }
   };
 
@@ -287,7 +471,9 @@ export default function FundManagement() {
                 <tr className="bg-gray-50 text-gray-600 text-sm tracking-wider uppercase">
                   <th className="p-5 font-semibold border-b border-gray-200">Staff</th>
                   <th className="p-5 font-semibold border-b border-gray-200 text-right">Base Salary</th>
-                  <th className="p-5 font-semibold border-b border-gray-200 text-right">Total Advance</th>
+                  <th className="p-5 font-semibold border-b border-gray-200 text-right">Absent Cut</th>
+                  <th className="p-5 font-semibold border-b border-gray-200 text-right">Advance</th>
+                  <th className="p-5 font-semibold border-b border-gray-200 text-right">Reward</th>
                   <th className="p-5 font-semibold border-b border-gray-200 text-right">Remaining</th>
                   <th className="p-5 font-semibold border-b border-gray-200 text-center">Status</th>
                   <th className="p-5 font-semibold border-b border-gray-200 text-center">Actions</th>
@@ -312,7 +498,9 @@ export default function FundManagement() {
                       </div>
                     </td>
                     <td className="p-5 text-right font-medium text-gray-600">₹{data.baseSalary}</td>
+                    <td className="p-5 text-right font-medium text-red-500">- ₹{data.totalDeduction}</td>
                     <td className="p-5 text-right font-medium text-red-500">- ₹{data.totalAdvance}</td>
+                    <td className="p-5 text-right font-medium text-emerald-500">+ ₹{data.totalReward}</td>
                     <td className="p-5 text-right font-bold text-gray-800 text-lg">₹{data.remainingSalary}</td>
                     <td className="p-5 text-center">
                       {data.isPaid ? (
@@ -326,22 +514,29 @@ export default function FundManagement() {
                       )}
                     </td>
                     <td className="p-5 text-center">
-                      {!data.isPaid ? (
-                        <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => handleGenerateReport(data.staff_id, selectedMonth)}
+                          className="flex items-center gap-1 bg-amber-500 text-white hover:bg-amber-600 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm shadow-amber-200 cursor-pointer"
+                          title="Generate Report"
+                        >
+                          <Download size={16} /> Report
+                        </button>
+                        {!data.isPaid ? (
                           <button 
                             onClick={() => handlePaySalary(data.staff_id, data.remainingSalary)}
                             className="flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer"
                           >
                             <IndianRupee size={16} /> Pay
                           </button>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-medium text-gray-400 italic">Settled</span>
-                      )}
+                        ) : (
+                          <span className="text-sm font-medium text-gray-400 italic px-3 py-1.5">Settled</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
-                {summaryData.length === 0 && (
+                {(!summaryData || summaryData.length === 0) && (
                   <tr>
                     <td colSpan="6" className="p-8 text-center text-gray-500">No staff records found.</td>
                   </tr>
@@ -425,7 +620,7 @@ export default function FundManagement() {
                     </td>
                   </tr>
                 ))}
-                {requests.length === 0 && (
+                {(!requests || requests.length === 0) && (
                   <tr>
                     <td colSpan="5" className="p-8 text-center text-gray-500">No pending advance requests.</td>
                   </tr>
@@ -536,7 +731,7 @@ export default function FundManagement() {
                     <td className="p-5 text-right font-bold text-gray-800">₹{item.amount}</td>
                   </tr>
                 ))}
-                {history.length === 0 && (
+                {(!history || history.length === 0) && (
                   <tr>
                     <td colSpan="6" className="p-8 text-center text-gray-500">No history found for the selected filters.</td>
                   </tr>
@@ -573,16 +768,71 @@ export default function FundManagement() {
       {/* REVENUE REPORT TAB */}
       {activeTab === 'revenue' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-300">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h3 className="text-xl font-bold text-gray-800">Detailed Revenue Report</h3>
-            <div className="bg-white px-4 py-2 border border-gray-200 rounded-xl shadow-sm flex items-center gap-3">
-              <Calendar size={20} className="text-emerald-600" />
-              <input 
-                type="month" 
-                value={revenueMonth}
-                onChange={(e) => {setRevenueMonth(e.target.value); setRevenuePage(1);}}
-                className="bg-transparent text-gray-800 font-bold outline-none cursor-pointer"
-              />
+          <div className="p-6 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-50/50">
+            <h3 className="text-xl font-bold text-gray-800 whitespace-nowrap">Detailed Revenue Report</h3>
+            <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+              <select 
+                value={revenueStaffId} 
+                onChange={(e) => {setRevenueStaffId(e.target.value); setRevenuePage(1);}}
+                className="px-4 py-2 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              >
+                <option value="">All Staff</option>
+                {staffList.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+              </select>
+
+              <select 
+                value={revenueFilterType} 
+                onChange={(e) => {setRevenueFilterType(e.target.value); setRevenuePage(1);}}
+                className="px-4 py-2 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              >
+                <option value="month">Monthly</option>
+                <option value="today">Today</option>
+                <option value="custom">Date Range</option>
+              </select>
+
+              {revenueFilterType === 'month' && (
+                <div className="bg-white px-3 py-1.5 border border-gray-300 rounded-xl flex items-center gap-2">
+                  <Calendar size={18} className="text-emerald-600" />
+                  <input 
+                    type="month" 
+                    value={revenueMonth}
+                    onChange={(e) => {setRevenueMonth(e.target.value); setRevenuePage(1);}}
+                    className="bg-transparent text-gray-800 font-medium outline-none cursor-pointer text-sm"
+                  />
+                </div>
+              )}
+
+              {revenueFilterType === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="date" 
+                    value={revenueStartDate}
+                    onChange={(e) => {setRevenueStartDate(e.target.value); setRevenuePage(1);}}
+                    className="px-3 py-1.5 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                  />
+                  <span className="text-gray-500 font-medium">to</span>
+                  <input 
+                    type="date" 
+                    value={revenueEndDate}
+                    onChange={(e) => {setRevenueEndDate(e.target.value); setRevenuePage(1);}}
+                    className="px-3 py-1.5 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                  />
+                </div>
+              )}
+
+              <button 
+                onClick={() => {
+                  setRevenueStaffId('');
+                  setRevenueFilterType('month');
+                  setRevenueMonth(new Date().toISOString().slice(0, 7));
+                  setRevenueStartDate('');
+                  setRevenueEndDate('');
+                  setRevenuePage(1);
+                }} 
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-xl border border-gray-300 font-medium transition-colors"
+              >
+                Clear Filters
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -606,7 +856,7 @@ export default function FundManagement() {
                     <td className="p-5 text-right font-bold text-emerald-600 text-lg">₹{data.amount}</td>
                   </tr>
                 ))}
-                {revenueData.length === 0 && (
+                {(!revenueData || revenueData.length === 0) && (
                   <tr>
                     <td colSpan="5" className="p-8 text-center text-gray-500">No revenue data found for this month.</td>
                   </tr>
