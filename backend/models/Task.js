@@ -5,6 +5,8 @@ const taskSchema = new mongoose.Schema({
     title: String,
     description: String,
     date: String,
+    problem: String,
+    serviceCharge: { type: Number, default: 0 },
     status: { type: String, default: 'pending' },
     type: { type: String, default: 'regular' },
     comment: String,

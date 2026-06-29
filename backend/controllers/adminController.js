@@ -155,9 +155,9 @@ const deleteSubadmin = async (req, res) => {
 const { sendToUser } = require('../utils/sse');
 
 const assignTask = async (req, res) => {
-    const { staff_id, title, description, date, type, images, customer_name, customer_mobile, customer_address } = req.body;
+    const { staff_id, title, description, date, type, images, customer_name, customer_mobile, customer_address, problem, serviceCharge } = req.body;
     try {
-        const task = await Task.create({ staff_id, title, description, date, type: type || 'regular', images: images || [], customer_name, customer_mobile, customer_address });
+        const task = await Task.create({ staff_id, title, description, date, type: type || 'regular', images: images || [], customer_name, customer_mobile, customer_address, problem, serviceCharge });
         
         sendToUser(staff_id, 'new_task', {
             id: task._id,
@@ -701,8 +701,8 @@ const exportTasksToExcel = async (req, res) => {
 
 const updateTaskByAdmin = async (req, res) => {
     try {
-        const { title, description, date, type, staff_id, customer_name, customer_mobile, customer_address } = req.body;
-        const updateData = { title, description, date, type, customer_name, customer_mobile, customer_address };
+        const { title, description, date, type, staff_id, customer_name, customer_mobile, customer_address, problem, serviceCharge } = req.body;
+        const updateData = { title, description, date, type, customer_name, customer_mobile, customer_address, problem, serviceCharge };
         if (staff_id) updateData.staff_id = staff_id;
         
         const task = await Task.findByIdAndUpdate(req.params.id, updateData, { new: true });

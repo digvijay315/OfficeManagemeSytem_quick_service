@@ -51,7 +51,9 @@ const TaskCard = ({ task, onComplete }) => {
           <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-md font-bold">Self Assigned</span>
         )}
       </div>
-      <p className="text-gray-600 text-sm mb-4">{task.description}</p>
+      <p className="text-gray-600 text-sm mb-2">{task.description}</p>
+      {task.problem && <p className="text-sm text-red-600 mb-1 font-medium">Problem: {task.problem}</p>}
+      {task.serviceCharge > 0 && <p className="text-sm text-emerald-600 mb-4 font-medium">Service Charge: ₹{task.serviceCharge}</p>}
       
       {(task.customer_name || task.customer_mobile || task.customer_address) && (
         <div className="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">

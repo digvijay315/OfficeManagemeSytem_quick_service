@@ -46,12 +46,30 @@ export default function Attendance() {
   const [showStartWebcam, setShowStartWebcam] = useState(false);
   const webcamRef = useRef(null);
 
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
+  const [reportData, setReportData] = useState(null);
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     fetchTodayAttendance();
     getLocation();
   }, []);
+
+  const fetchMonthlyReport = async () => {
+    try {
+      const res = await api.get(`/staff/funds/report/${selectedMonth}`);
+      if (res.data && res.data.summary) {
+        setReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching monthly report', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMonthlyReport();
+  }, [selectedMonth]);
 
   useEffect(() => {
     let interval;
@@ -271,6 +289,94 @@ export default function Attendance() {
               </div>
             )}
           </div>
+        )}
+      </div>
+      
+      {/* Monthly Attendance Log */}
+      <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mt-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <Clock size={24} className="text-emerald-600" />
+            Monthly Attendance Log
+          </h2>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <label className="text-sm font-medium text-gray-500 whitespace-nowrap">Filter Month:</label>
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {reportData && reportData.summary ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                <p className="text-sm text-gray-500 font-medium">Total Days</p>
+                <p className="text-2xl font-bold text-gray-800">{reportData.summary.totalDaysInMonth}</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                <p className="text-sm text-gray-500 font-medium">Elapsed</p>
+                <p className="text-2xl font-bold text-gray-800">{reportData.summary.elapsedDays}</p>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
+                <p className="text-sm text-emerald-600 font-medium">Present</p>
+                <p className="text-2xl font-bold text-emerald-700">{reportData.summary.presentDays}</p>
+              </div>
+              <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
+                <p className="text-sm text-red-600 font-medium">Absent</p>
+                <p className="text-2xl font-bold text-red-700">{reportData.summary.absentDays}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-y border-gray-200 text-gray-600 text-sm">
+                    <th className="p-4 font-medium">Date</th>
+                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium">Start Time</th>
+                    <th className="p-4 font-medium">End Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: reportData.summary.elapsedDays }, (_, i) => {
+                    const dayStr = String(i + 1).padStart(2, '0');
+                    const dateStr = `${selectedMonth}-${dayStr}`;
+                    const record = reportData.attendances.find(a => a.date === dateStr);
+                    const isPresent = !!record;
+                    return (
+                      <tr key={dateStr} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="p-4 text-sm font-medium text-gray-700">{dateStr}</td>
+                        <td className="p-4">
+                          {isPresent ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                              <CheckCircle size={12} /> Present
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                              Absent
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-sm text-gray-600">{isPresent ? record.start_time || '-' : '-'}</td>
+                        <td className="p-4 text-sm text-gray-600">{isPresent ? record.end_time || '-' : '-'}</td>
+                      </tr>
+                    );
+                  })}
+                  {reportData.summary.elapsedDays === 0 && (
+                    <tr>
+                      <td colSpan="4" className="p-8 text-center text-gray-500">No attendance data for this month yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="p-8 text-center text-gray-500 animate-pulse">Loading monthly data...</div>
         )}
       </div>
     </div>

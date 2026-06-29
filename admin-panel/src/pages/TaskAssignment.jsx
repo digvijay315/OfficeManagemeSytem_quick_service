@@ -13,6 +13,8 @@ export default function TaskAssignment() {
     customer_name: '',
     customer_mobile: '',
     customer_address: '',
+    problem: '',
+    serviceCharge: '',
     date: new Date().toISOString().split('T')[0],
     type: 'regular'
   });
@@ -91,7 +93,7 @@ export default function TaskAssignment() {
       await api.post('/admin/tasks', { ...formData, images: imageUrls });
       closeLoader();
       showAlert('Success', 'Task assigned successfully!', 'success');
-      setFormData({ ...formData, title: '', description: '', customer_name: '', customer_mobile: '', customer_address: '' });
+      setFormData({ ...formData, title: '', description: '', customer_name: '', customer_mobile: '', customer_address: '', problem: '', serviceCharge: '' });
       setSelectedFiles([]);
       setPreviewUrls([]);
     } catch (err) {
@@ -200,6 +202,29 @@ export default function TaskAssignment() {
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               value={formData.customer_address}
               onChange={(e) => setFormData({...formData, customer_address: e.target.value})}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><AlertTriangle size={16}/> Problem / Issue</label>
+            <input 
+              type="text" 
+              placeholder="e.g. AC Not Cooling"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={formData.problem}
+              onChange={(e) => setFormData({...formData, problem: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><ClipboardList size={16}/> Service Charge (₹)</label>
+            <input 
+              type="number" 
+              placeholder="e.g. 500"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={formData.serviceCharge}
+              onChange={(e) => setFormData({...formData, serviceCharge: e.target.value})}
             />
           </div>
         </div>

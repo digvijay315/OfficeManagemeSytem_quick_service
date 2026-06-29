@@ -4,7 +4,7 @@ const {
     getFunds, requestAdvance,
     getTodayAttendance, startAttendance, stopAttendance,
     getRewardsAndRevenue, getProfile, updateProfile, changePassword,
-    updateRewardCount
+    updateRewardCount, getMonthlyReport
 } = require('../controllers/staffController');
 
 const router = express.Router();
@@ -24,6 +24,7 @@ router.post('/tasks', createAdditionalTask);
 
 router.get('/funds', getFunds);
 router.post('/funds/request', requestAdvance);
+router.get('/funds/report/:month', getMonthlyReport);
 
 router.get('/rewards-revenue', getRewardsAndRevenue);
 

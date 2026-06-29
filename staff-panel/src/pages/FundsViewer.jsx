@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
-import { IndianRupee, History, Wallet, PlusCircle, CheckCircle, Clock, XCircle, FileText } from 'lucide-react';
+import { IndianRupee, History, Wallet, PlusCircle, CheckCircle, Clock, XCircle, FileText, Download } from 'lucide-react';
 import Swal from 'sweetalert2';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function FundsViewer() {
   const [data, setData] = useState({ salary: 0, baseSalary: 0, totalRewards: 0, totalTaken: 0, remaining: 0, funds: [] });
@@ -53,6 +55,179 @@ export default function FundsViewer() {
       case 'pending':
       default:
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><Clock size={12} /> Pending</span>;
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedMonth) {
+      return Swal.fire('Error', 'Please select a month to generate report', 'error');
+    }
+    try {
+      Swal.fire({ title: 'Generating Report', text: 'Fetching detailed data...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+      const res = await api.get(`/staff/funds/report/${selectedMonth}`);
+      const reportData = res.data;
+      
+      if (!reportData || typeof reportData === 'string' || !reportData.summary) {
+         console.error('Invalid report data received:', reportData);
+         Swal.fire('Error', 'Invalid data received from server. Please try again.', 'error');
+         return;
+      }
+      
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(16, 185, 129); // Emerald 500
+      doc.text("Quick Service", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text("Premium Salary & Attendance Report", 14, 30);
+      doc.text(`Month: ${reportData.summary.month}`, 14, 35);
+      
+      // Staff Details
+      doc.setFontSize(14);
+      doc.setTextColor(40);
+      doc.text("Staff Details", 14, 45);
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      doc.text(`Name: ${reportData.staff.name}`, 14, 52);
+      doc.text(`Email: ${reportData.staff.email}`, 14, 57);
+      doc.text(`Base Salary: Rs. ${reportData.staff.baseSalary}`, 14, 62);
+
+      // Summary Table
+      autoTable(doc, {
+        startY: 70,
+        head: [['Total Days', 'Elapsed', 'Present', 'Absent', 'Daily Rate', 'Absent Cut', 'Advances', 'Rewards', 'Net Salary']],
+        body: [[
+          reportData.summary.totalDaysInMonth,
+          reportData.summary.elapsedDays,
+          reportData.summary.presentDays,
+          reportData.summary.absentDays,
+          `Rs. ${reportData.summary.dailySalary}`,
+          `Rs. ${reportData.summary.totalDeduction}`,
+          `Rs. ${reportData.summary.totalAdvance}`,
+          `Rs. ${reportData.summary.totalReward}`,
+          `Rs. ${reportData.summary.netSalary}`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129] },
+        styles: { halign: 'center', fontSize: 8 }
+      });
+
+      let currentY = doc.lastAutoTable.finalY + 10;
+
+      // Combined Attendance Log
+      const combinedAttendance = [];
+      for (let i = 1; i <= reportData.summary.elapsedDays; i++) {
+         const dayStr = String(i).padStart(2, '0');
+         const dateStr = `${selectedMonth}-${dayStr}`;
+         const record = reportData.attendances.find(a => a.date === dateStr);
+         if (record) {
+            combinedAttendance.push([dateStr, 'Present', record.start_time || 'N/A', record.end_time || 'N/A']);
+         } else {
+            combinedAttendance.push([dateStr, 'Absent', '-', '-']);
+         }
+      }
+
+      if (combinedAttendance.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Daily Attendance Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Status', 'Start Time', 'End Time']],
+          body: combinedAttendance,
+          theme: 'striped',
+          didParseCell: function(dataParse) {
+             if (dataParse.section === 'body' && dataParse.column.index === 1) {
+                if (dataParse.cell.raw === 'Absent') {
+                   dataParse.cell.styles.textColor = [239, 68, 68]; // red
+                   dataParse.cell.styles.fontStyle = 'bold';
+                } else {
+                   dataParse.cell.styles.textColor = [16, 185, 129]; // green
+                   dataParse.cell.styles.fontStyle = 'bold';
+                }
+             }
+          },
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Advances Log
+      if (reportData.advances && reportData.advances.length > 0) {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Advances Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Amount', 'Description']],
+          body: reportData.advances.map(a => [a.date, `Rs. ${a.amount}`, a.description || 'N/A']),
+          theme: 'striped',
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Rewards Log
+      if (reportData.rewards && reportData.rewards.length > 0) {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text("Rewards Log", 14, currentY);
+        autoTable(doc, {
+          startY: currentY + 4,
+          head: [['Date', 'Amount', 'Task']],
+          body: reportData.rewards.map(r => [r.date, `Rs. ${r.amount}`, r.title || 'N/A']),
+          theme: 'striped',
+          styles: { fontSize: 8 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Final Settlement Details
+      if (currentY > 220) { doc.addPage(); currentY = 20; }
+      
+      doc.setFontSize(14);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Final Settlement Details", 14, currentY);
+      
+      currentY += 8;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Base Salary: Rs. ${reportData.staff.baseSalary}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Total Rewards: + Rs. ${reportData.summary.totalReward}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Total Advance Taken: - Rs. ${reportData.summary.totalAdvance}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Absent Deductions: - Rs. ${reportData.summary.totalDeduction}`, 14, currentY);
+      
+      currentY += 10;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(16, 185, 129); // emerald
+      doc.text(`Total Payable Amount: Rs. ${reportData.summary.netSalary}`, 14, currentY);
+      
+      currentY += 30;
+      if (currentY > 270) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "normal");
+      doc.text("_________________________", 14, currentY);
+      doc.text("Staff Signature", 14, currentY + 6);
+      
+      doc.text("_________________________", 130, currentY);
+      doc.text("Admin Signature", 130, currentY + 6);
+
+      doc.save(`${reportData.staff.name.replace(/ /g, '_')}_Salary_Report_${selectedMonth}.pdf`);
+      Swal.close();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Failed to generate report', 'error');
     }
   };
 
@@ -127,21 +302,29 @@ export default function FundsViewer() {
             <History size={20} className="text-emerald-600" />
             Advance & Salary History
           </h2>
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <label className="text-sm font-medium text-gray-500 whitespace-nowrap">Filter Month:</label>
             <input 
               type="month" 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+              className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none flex-grow md:flex-grow-0"
             />
             {selectedMonth && (
-              <button 
-                onClick={() => setSelectedMonth('')}
-                className="text-sm text-gray-500 hover:text-gray-700 underline ml-2"
-              >
-                Clear
-              </button>
+              <>
+                <button 
+                  onClick={handleGenerateReport}
+                  className="flex items-center gap-1 bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                >
+                  <Download size={16} /> Report
+                </button>
+                <button 
+                  onClick={() => setSelectedMonth('')}
+                  className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
+                >
+                  Clear
+                </button>
+              </>
             )}
           </div>
         </div>

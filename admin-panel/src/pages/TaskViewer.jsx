@@ -339,7 +339,9 @@ export default function TaskViewer() {
                                                     <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-md font-bold">Self Assigned</span>
                                                     )}
                                                 </div>
-                                                <p className="text-gray-600 text-sm mb-4">{task.description}</p>
+                                                <p className="text-gray-600 text-sm mb-2">{task.description}</p>
+                                                {task.problem && <p className="text-sm text-red-600 mb-1"><strong>Problem:</strong> {task.problem}</p>}
+                                                {task.serviceCharge > 0 && <p className="text-sm text-emerald-600 mb-2"><strong>Service Charge:</strong> ₹{task.serviceCharge}</p>}
                                                 
                                                 {task.status !== 'completed' ? (
                                                     <div className="mt-4 pt-3 border-t border-gray-100">
@@ -497,6 +499,17 @@ export default function TaskViewer() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows="3" value={editModalTask.description || ''} onChange={e => setEditModalTask({...editModalTask, description: e.target.value})}></textarea>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Problem / Issue</label>
+                  <input type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" value={editModalTask.problem || ''} onChange={e => setEditModalTask({...editModalTask, problem: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Charge (₹)</label>
+                  <input type="number" className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" value={editModalTask.serviceCharge || ''} onChange={e => setEditModalTask({...editModalTask, serviceCharge: e.target.value})} />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
