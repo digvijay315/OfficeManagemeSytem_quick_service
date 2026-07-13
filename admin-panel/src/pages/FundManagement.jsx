@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import { showAlert, showLoader, closeLoader, showConfirm } from '../utils/swalUtils';
-import { Wallet, IndianRupee, Calendar, CheckCircle, HandCoins, User, Clock, Check, X, FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Wallet, IndianRupee, Calendar, CheckCircle, HandCoins, User, Clock, Check, X, FileText, ChevronDown, ChevronUp, Download, Gift } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Swal from 'sweetalert2';
@@ -338,6 +338,44 @@ export default function FundManagement() {
     }
   };
 
+  const handleGiveBonus = async (staffId, staffName) => {
+    const { value: formValues } = await Swal.fire({
+      title: `Give Bonus to ${staffName}`,
+      html:
+        '<input id="swal-input1" class="swal2-input" placeholder="Amount (₹)" type="number">' +
+        '<input id="swal-input2" class="swal2-input" placeholder="Reason (e.g. Good Performance)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Grant Bonus',
+      confirmButtonColor: '#059669',
+      preConfirm: () => {
+        const amount = document.getElementById('swal-input1').value;
+        const reason = document.getElementById('swal-input2').value;
+        if (!amount || amount <= 0) {
+          Swal.showValidationMessage('Please enter a valid amount');
+          return false;
+        }
+        return { amount, reason };
+      }
+    });
+
+    if (formValues) {
+      showLoader('Processing', 'Granting bonus...');
+      try {
+        await api.post(`/admin/staff/${staffId}/bonus`, {
+          amount: formValues.amount,
+          reason: formValues.reason
+        });
+        closeLoader();
+        Swal.fire('Success', 'Bonus granted successfully!', 'success');
+        fetchSummary(selectedMonth); // refresh table
+      } catch (err) {
+        closeLoader();
+        Swal.fire('Error', 'Failed to grant bonus', 'error');
+      }
+    }
+  };
+
   // Requests Tab Handlers
   const handleApproveRequest = async (request) => {
     const { value: file } = await Swal.fire({
@@ -421,7 +459,7 @@ export default function FundManagement() {
         <p className="text-emerald-100 mb-6">Manage monthly salaries, approve advance requests, and view payment history.</p>
         
         {/* Navigation Tabs */}
-        <div className="flex gap-2 border-b border-emerald-500/30 pb-0">
+        <div className="flex gap-2 border-b border-emerald-500/30 pb-0 overflow-x-auto whitespace-nowrap">
           <button 
             onClick={() => setActiveTab('salary')}
             className={`px-6 py-3 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'salary' ? 'bg-white text-emerald-800' : 'text-emerald-100 hover:bg-emerald-700 hover:text-white'}`}
@@ -521,6 +559,13 @@ export default function FundManagement() {
                           title="Generate Report"
                         >
                           <Download size={16} /> Report
+                        </button>
+                        <button 
+                          onClick={() => handleGiveBonus(data.staff_id, data.name)}
+                          className="flex items-center gap-1 bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm shadow-blue-200 cursor-pointer"
+                          title="Give Bonus"
+                        >
+                          <Gift size={16} /> Bonus
                         </button>
                         {!data.isPaid ? (
                           <button 
@@ -803,7 +848,7 @@ export default function FundManagement() {
               )}
 
               {revenueFilterType === 'custom' && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input 
                     type="date" 
                     value={revenueStartDate}

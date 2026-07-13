@@ -228,7 +228,7 @@ const getFundsSummary = async (req, res) => {
             const staffFunds = allFunds.filter(f => f.staff_id.toString() === staff.id);
             const totalAdvance = staffFunds.reduce((sum, f) => sum + f.amount, 0);
             
-            const staffRewards = allRewardTasks.filter(t => t.staff_id.toString() === staff.id);
+            const staffRewards = allRewardTasks.filter(t => t.staff_id && t.staff_id.toString() === staff.id);
             const totalReward = staffRewards.reduce((sum, t) => sum + (t.rewardAmount || 0), 0);
 
             const payment = allPayments.find(p => p.staff_id.toString() === staff.id);
@@ -272,6 +272,7 @@ const getFundsSummary = async (req, res) => {
         
         res.json({ data: paginatedSummary, total, page, pages: Math.ceil(total / limit) });
     } catch (err) {
+        console.error('Error in getFundsSummary:', err);
         res.status(500).json({ error: 'Error fetching summary' });
     }
 };
@@ -759,6 +760,34 @@ const getDetailedRevenueReport = async (req, res) => {
     }
 };
 
+const grantBonus = async (req, res) => {
+    const staff_id = req.params.id;
+    const { amount, reason, date } = req.body;
+    try {
+        const task = await Task.create({
+            staff_id,
+            title: reason || 'Direct Bonus',
+            description: 'Direct Bonus added by Admin',
+            date: date || new Date().toISOString().split('T')[0],
+            type: 'additional',
+            rewardAmount: amount,
+            verificationStatus: 'verified',
+            status: 'completed'
+        });
+        
+        sendToUser(staff_id, 'new_task', {
+            id: task._id,
+            title: 'Bonus Received',
+            message: `You received a bonus of ₹${amount} for: ${reason || 'Direct Bonus'}`
+        });
+
+        res.json({ success: true, task });
+    } catch (err) {
+        console.error("Error in grantBonus:", err);
+        res.status(500).json({ error: 'Error granting bonus' });
+    }
+};
+
 module.exports = {
     getStaff, createStaff, updateStaff, deleteStaff,
     getSubadmins, createSubadmin, updateSubadmin, deleteSubadmin,
@@ -766,5 +795,5 @@ module.exports = {
     getAttendance, getPredefinedTasks, createPredefinedTask, deletePredefinedTask,
     getDashboardStats, getAdvanceRequests, getAdvanceHistory, updateAdvanceRequest,
     verifyTask, getRevenueReports, getDetailedRevenueReport, getPendingVerificationTasks, exportTasksToExcel,
-    updateTaskByAdmin, deleteTaskByAdmin, getStaffMonthlyReport
+    updateTaskByAdmin, deleteTaskByAdmin, getStaffMonthlyReport, grantBonus
 };

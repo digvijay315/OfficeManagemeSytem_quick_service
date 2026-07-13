@@ -31,3 +31,6 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export const grantBonus = (staffId, amount, reason, date) => 
+  api.post(`/admin/staff/${staffId}/bonus`, { amount, reason, date });
