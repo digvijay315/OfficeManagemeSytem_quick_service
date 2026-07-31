@@ -245,7 +245,7 @@ const getFundsSummary = async (req, res) => {
                 }
             });
 
-            const dailySalary = totalDaysInMonth > 0 ? (baseSalary / totalDaysInMonth) : 0;
+            const dailySalary = baseSalary / 30;
             const totalDeduction = Math.round(absentDays * dailySalary);
             
             const effectiveSalary = baseSalary + totalReward - totalAdvance - totalDeduction;
@@ -316,7 +316,7 @@ const getStaffMonthlyReport = async (req, res) => {
         const absentDates = datesToCheck.filter(d => !presentDates.has(d));
         
         const baseSalary = staff.salary || 0;
-        const dailySalary = totalDaysInMonth > 0 ? (baseSalary / totalDaysInMonth) : 0;
+        const dailySalary = baseSalary / 30;
         const totalDeduction = Math.round(absentDates.length * dailySalary);
         
         const totalAdvance = funds.reduce((sum, f) => sum + f.amount, 0);
